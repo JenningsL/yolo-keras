@@ -81,12 +81,15 @@ def format_label(path, S, B, target_size, resize=(1, 1)):
                 label[row * S + col][C + 3] = (y - row * unit_size) / unit_size
                 label[row * S + col][C + 4] = w / target_size
                 label[row * S + col][C + 5] = h / target_size
-
+        label = label.flatten()
 
         label_dict[key] = label
     return label_dict
 
 if __name__ == '__main__':
     # original size of KITTI is 1242 x 375
-    print format_label(sys.argv[1], 7, 2, 448, (448 / 1242, 448 / 375))
+    labels = format_label(sys.argv[1], 7, 2, 448, (448 / 1242, 448 / 375))
+    import pickle
+    with open(sys.argv[2], 'wb') as fout:
+        pickle.dump(labels, fout)
 
