@@ -11,9 +11,9 @@ class DirectoryIteratorWithBoundingBoxes(DirectoryIterator):
                  color_mode='rgb', classes=None, class_mode='categorical', batch_size=32,
                  shuffle=True, seed=None, data_format=None, save_to_dir=None,
                  save_prefix='', save_format='jpeg', follow_links=False):
-        super(DirectoryIteratorWithBoundingBoxes, self).__init__(directory, image_data_generator, target_size, color_mode, classes, class_mode, batch_size,
-                         shuffle, seed, data_format, save_to_dir, save_prefix, save_format, follow_links)
+        super(DirectoryIteratorWithBoundingBoxes, self).__init__(directory, image_data_generator, target_size, color_mode, classes, class_mode, batch_size, shuffle, seed, data_format, save_to_dir, save_prefix, save_format, follow_links)
         self.labels = labels
+        self.image_shape = target_size + (3,)
 
     def next(self):
         """
@@ -23,10 +23,13 @@ class DirectoryIteratorWithBoundingBoxes(DirectoryIterator):
         with self.lock:
             #index_array, current_index, current_batch_size = next(self.index_generator)
             index_array = next(self.index_generator)
+        return self._get_batches_of_transformed_samples(index_array)
+
+    def _get_batches_of_transformed_samples(self, index_array):
         # The transformation of images is not under thread lock
         # so it can be done in parallel
         batch_x = np.zeros((self.batch_size,) + self.image_shape, dtype=backend.floatx())
-        label_dim = labels.values()[0].shape[0]
+        label_dim = self.labels.values()[0].shape[0]
         batch_y = np.zeros((self.batch_size, label_dim))
         #locations = np.zeros((current_batch_size,) + (4,), dtype=backend.floatx())
 
@@ -87,6 +90,6 @@ if __name__ == "__main__":
         labels = pickle.load(fin)
     iterator = DirectoryIteratorWithBoundingBoxes(imgs_path, ImageDataGenerator(), labels, target_size=(448, 448),
                                                   batch_size=16)
-    batch_x, batch_y = iterator.next()
-    print batch_x, batch_y
+    batch_x, batch_y = next(iterator)
+    print batch_x.shape, batch_y.shape
     # batch_y.shape
