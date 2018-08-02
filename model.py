@@ -66,20 +66,20 @@ class Yolo(object):
         train_labels = format_label(os.path.join(train_path, 'label'), 7, 2, 448, (448 / 1242, 448 / 375))
         train_generator = DirectoryIteratorWithBoundingBoxes(
                 os.path.join(train_path, 'image'), ImageDataGenerator(), train_labels, target_size=(448, 448),
-                batch_size=32)
+                batch_size=16)
         #batch_x, batch_y = train_generator.next()
         #print batch_x.shape, batch_y.shape
         validation_labels = format_label(os.path.join(valid_path, 'label'), 7, 2, 448, (448 / 1242, 448 / 375))
         validation_generator = DirectoryIteratorWithBoundingBoxes(
                 os.path.join(valid_path, 'image'), ImageDataGenerator(), validation_labels, target_size=(448, 448),
-                batch_size=32)
+                batch_size=16)
         self.model.fit_generator(
             train_generator,
             # steps_per_epoch=2000,
             epochs=50,
             validation_data=validation_generator,
             validation_steps=100)
-        loss_and_metrics = self.model.evaluate(x_test, y_test, batch_size=64)
+        loss_and_metrics = self.model.evaluate(x_test, y_test, batch_size=16)
         print loss_and_metrics
 
 #classes = model.predict(x_test, batch_size=128)
