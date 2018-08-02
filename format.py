@@ -69,6 +69,7 @@ def format_label(path, S, B, target_size, resize=(1, 1)):
             y_unit = (row + 0.5) * unit_size
             IOU1 = cal_IOU([x, y, w, h], [x_unit - anchor_boxes[0][0] / 2, y_unit - anchor_boxes[0][1] / 2, x_unit + anchor_boxes[0][0] / 2, y_unit + anchor_boxes[0][1] / 2])
             IOU2 = cal_IOU([x, y, w, h], [x_unit - anchor_boxes[1][0] / 2, y_unit - anchor_boxes[1][1] / 2, x_unit + anchor_boxes[1][0] / 2, y_unit + anchor_boxes[1][1] / 2])
+            # [C_class acnhor1_has_obj acnhor2_has_obj bbox1... bbox2... ]
             if IOU2 > IOU1:
                 label[row * S + col][C + 1] = 1
                 label[row * S + col][C + 6] = (x - col * unit_size) / unit_size
@@ -81,7 +82,7 @@ def format_label(path, S, B, target_size, resize=(1, 1)):
                 label[row * S + col][C + 3] = (y - row * unit_size) / unit_size
                 label[row * S + col][C + 4] = w / target_size
                 label[row * S + col][C + 5] = h / target_size
-        label = label.flatten()
+        # label = label.flatten()
 
         label_dict[key] = label
     return label_dict
@@ -92,4 +93,3 @@ if __name__ == '__main__':
     import pickle
     with open(sys.argv[2], 'wb') as fout:
         pickle.dump(labels, fout)
-
