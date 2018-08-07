@@ -29,8 +29,8 @@ class DirectoryIteratorWithBoundingBoxes(DirectoryIterator):
         # The transformation of images is not under thread lock
         # so it can be done in parallel
         batch_x = np.zeros((self.batch_size,) + self.image_shape, dtype=backend.floatx())
-        label_dim = self.labels.values()[0].shape[0]
-        batch_y = np.zeros((self.batch_size, label_dim))
+        label_dim = self.labels.values()[0].shape
+        batch_y = np.zeros((self.batch_size, ) + label_dim)
         #locations = np.zeros((current_batch_size,) + (4,), dtype=backend.floatx())
 
         grayscale = self.color_mode == 'grayscale'

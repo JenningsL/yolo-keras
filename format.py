@@ -50,38 +50,41 @@ def format_label(path, S, B, target_size, resize=(1, 1)):
         key = fname.split('.')[0]
         fpath = os.path.join(path, fname)
         objs = read_kitti_label(fpath)
-        label = np.zeros((S * S, 5 * B + C))
+        #label = np.zeros((S * S, 5 * B + C))
+        label = np.zeros((S * S, B, 5 + C))
         for obj in objs:
             left = obj['bbox'][0] * resize[0]
             top = obj['bbox'][1] * resize[1]
             right = obj['bbox'][2] * resize[0]
             bottom = obj['bbox'][3] * resize[1]
-            x = (left - right) / 2
-            y = (bottom - top) / 2
-            w = left - right
+            x = (right + left) / 2
+            y = (bottom + top) / 2
+            w = right - left
             h = bottom - top
             row = int(y // unit_size)
             col = int(x // unit_size)
             cls = obj['class']
-            label[row * S + col][cls] = 1
             # TODO: determined bbox based on IOU
             x_unit = (col + 0.5) * unit_size
             y_unit = (row + 0.5) * unit_size
             IOU1 = cal_IOU([x, y, w, h], [x_unit - anchor_boxes[0][0] / 2, y_unit - anchor_boxes[0][1] / 2, x_unit + anchor_boxes[0][0] / 2, y_unit + anchor_boxes[0][1] / 2])
             IOU2 = cal_IOU([x, y, w, h], [x_unit - anchor_boxes[1][0] / 2, y_unit - anchor_boxes[1][1] / 2, x_unit + anchor_boxes[1][0] / 2, y_unit + anchor_boxes[1][1] / 2])
             # [C_class acnhor1_has_obj acnhor2_has_obj bbox1... bbox2... ]
+            anc_box = 0
             if IOU2 > IOU1:
-                label[row * S + col][C + 1] = 1
-                label[row * S + col][C + 6] = (x - col * unit_size) / unit_size
-                label[row * S + col][C + 7] = (y - row * unit_size) / unit_size
-                label[row * S + col][C + 8] = w / target_size
-                label[row * S + col][C + 9] = h / target_size
-            else:
-                label[row * S + col][C] = 1
-                label[row * S + col][C + 2] = (x - col * unit_size) / unit_size
-                label[row * S + col][C + 3] = (y - row * unit_size) / unit_size
-                label[row * S + col][C + 4] = w / target_size
-                label[row * S + col][C + 5] = h / target_size
+                anc_box = 1
+            label[row * S + col][anc_box][cls] = 1
+            label[row * S + col][anc_box][C] = 1
+            label[row * S + col][anc_box][C + 1] = (x - col * unit_size) / unit_size
+            label[row * S + col][anc_box][C + 2] = (y - row * unit_size) / unit_size
+            label[row * S + col][anc_box][C + 3] = w / target_size
+            label[row * S + col][anc_box][C + 4] = h / target_size
+            if fname == '001137.txt':
+                print 'format row: {0} col: {1}'.format(row, col)
+                print label[row * S + col][anc_box]
+                #print label[row * S + col][anc_box][C + 1] * unit_size + col * unit_size - w / 2
+                print label[row * S + col][anc_box][C + 1] * unit_size + col * unit_size
+            #print label[row * S + col]
         # label = label.flatten()
 
         label_dict[key] = label
@@ -89,7 +92,7 @@ def format_label(path, S, B, target_size, resize=(1, 1)):
 
 if __name__ == '__main__':
     # original size of KITTI is 1242 x 375
-    labels = format_label(sys.argv[1], 7, 2, 448, (448 / 1242, 448 / 375))
+    labels = format_label(sys.argv[1], 7, 2, 448, (float(448) / 1242, float(448) / 375))
     import pickle
     with open(sys.argv[2], 'wb') as fout:
         pickle.dump(labels, fout)
