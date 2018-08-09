@@ -5,6 +5,7 @@ import numpy as np
 from six.moves import range
 import os
 import sys
+from format import format_label
 
 class DirectoryIteratorWithBoundingBoxes(DirectoryIterator):
     def __init__(self, directory, image_data_generator, labels, target_size=(256, 256),
@@ -42,8 +43,8 @@ class DirectoryIteratorWithBoundingBoxes(DirectoryIterator):
                                  grayscale=grayscale,
                                  target_size=self.target_size)
             x = image.img_to_array(img, data_format=self.data_format)
-            x = self.image_data_generator.random_transform(x)
-            x = self.image_data_generator.standardize(x)
+            #x = self.image_data_generator.random_transform(x)
+            #x = self.image_data_generator.standardize(x)
             batch_x[i] = x
             batch_y[i] = self.labels[fkey]
             """
@@ -85,11 +86,10 @@ class DirectoryIteratorWithBoundingBoxes(DirectoryIterator):
 if __name__ == "__main__":
     imgs_path  = sys.argv[1]
     label_path = sys.argv[2]
-    import pickle
-    with open(label_path, 'rb') as fin:
-        labels = pickle.load(fin)
+    labels = format_label(label_path, 7, 2, 448, (float(448) / 1242, float(448) / 375))
     iterator = DirectoryIteratorWithBoundingBoxes(imgs_path, ImageDataGenerator(), labels, target_size=(448, 448),
                                                   batch_size=16)
     batch_x, batch_y = next(iterator)
     print batch_x.shape, batch_y.shape
+    print batch_x[0]
     # batch_y.shape

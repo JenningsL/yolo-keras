@@ -79,7 +79,8 @@ def format_label(path, S, B, target_size, resize=(1, 1)):
             label[row * S + col][anc_box][C + 2] = (y - row * unit_size) / unit_size
             label[row * S + col][anc_box][C + 3] = w / target_size
             label[row * S + col][anc_box][C + 4] = h / target_size
-            if fname == '001137.txt':
+            if fname == '002242.txt':
+                print 'left: {0} top: {1}  right:{2} bottom: {3}'.format(left, top, right, bottom)
                 print 'format row: {0} col: {1}'.format(row, col)
                 print label[row * S + col][anc_box]
                 #print label[row * S + col][anc_box][C + 1] * unit_size + col * unit_size - w / 2

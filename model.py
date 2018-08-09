@@ -1,6 +1,9 @@
 from keras.models import Sequential
-from keras.layers import Dense, Conv2D, LeakyReLU,  MaxPooling2D, Flatten, Reshape
+from keras.layers import Dense, Conv2D, LeakyReLU,  MaxPooling2D, Flatten, Reshape, BatchNormalization
+from keras.preprocessing import image
 from keras.preprocessing.image import ImageDataGenerator
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras.optimizers import Adam
 import keras.backend as K
 from data import DirectoryIteratorWithBoundingBoxes
 from format import format_label
@@ -10,45 +13,7 @@ import numpy as np
 
 IMAGE_H = 448
 IMAGE_W = 448
-
-def yolo_loss(y_true, y_pred):
-    coord_weight = 5
-    noobj_weight = 0.5
-    S = 7
-    B = 2
-    C = 9
-    err = 0
-    for unit_i in range(S * S):
-        # [C_class acnhor1_has_obj acnhor2_has_obj bbox1... bbox2... ]
-        for anchor_i in range(B):
-            has_obj = int(y_true[unit_i][C + anchor_i])
-            no_obj = int(1 - y_true[unit_i][C + anchor_i])
-            coord_x_pred = y_pred[C + B + anchor_i * 4]
-            coord_y_pred = y_pred[C + B + anchor_i * 4 + 1]
-            coord_x_true = y_true[C + B + anchor_i * 4]
-            coord_y_true = y_true[C + B + anchor_i * 4 + 1]
-            # bbox coord error
-            err += coord_weight * has_obj * (math.pow(coord_x_pred - coord_x_true, 2) + math.pow(coord_y_pred - coord_y_true, 2))
-            # bbox size error
-            w_pred = y_pred[C + B + anchor_i * 4 + 2]
-            h_pred = y_pred[C + B + anchor_i * 4 + 3]
-            w_true = y_true[C + B + anchor_i * 4 + 2]
-            h_true = y_true[C + B + anchor_i * 4 + 3]
-            err += has_obj * (math.pow(math.sqrt(w_pred) - math.sqrt(w_true), 2) + math.pow(math.sqrt(h_pred) - math.sqrt(h_true), 2))
-            # obj confidence error
-            err += math.pow(y_true[unit_i][C + anchor_i] - y_pred[unit_i][C + anchor_i], 2)
-            err += no_obj * math.pow(y_true[unit_i][C + anchor_i] - y_pred[unit_i][C + anchor_i], 2)
-        # classification error
-        cls_pred = y_pred[:C]
-        cls_true = y_true[:C]
-        err += np.sum((cls_pred - cls_true)**2, axis=1)
-    return err
-
-def yolo_batch_loss(y_true, y_pred):
-    batch_err = np.zeros((y_true.shape[0],))
-    for i in y_true.shape[0]:
-        batch_err[i] = yolo_loss(y_true[i], y_pred[i])
-    return K.mean(batch_err)
+batch_size = 8
 
 class Yolo(object):
     """docstring for Yolo."""
@@ -59,6 +24,8 @@ class Yolo(object):
         self.C = 9 # number of classes
         self.lambda_coord = 5
         self.lambda_noobj = 0.5
+        #self.target_size = (448, 448)
+        self.target_size = (416, 416)
         self.model = self._build()
 
     def _build(self):
@@ -66,60 +33,112 @@ class Yolo(object):
 
         #input_image = Input(shape=(IMAGE_H, IMAGE_W, 3))
         #output  = Input(shape=(self.S*self.S*(self.C+5*self.B)))
-        model.add(Conv2D(64, 7, 2, input_shape=(448, 448, 3), activation=LeakyReLU(alpha=0.1)))
+        model.add(Conv2D(64, 7, 2, input_shape=self.target_size + (3,)))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
         model.add(MaxPooling2D(2))
-        model.add(Conv2D(192, 3, 1, activation=LeakyReLU(alpha=0.1)))
+        model.add(Conv2D(192, 3, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
         model.add(MaxPooling2D(2))
-        model.add(Conv2D(128, 1, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(256, 3, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(256, 1, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(512, 3, 1, activation=LeakyReLU(alpha=0.1)))
+        model.add(Conv2D(128, 1, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(256, 3, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(256, 1, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(512, 3, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
         model.add(MaxPooling2D(2))
 
-        model.add(Conv2D(256, 1, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(512, 3, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(256, 1, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(512, 3, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(256, 1, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(512, 3, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(256, 1, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(512, 3, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(512, 1, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(1024, 3, 1, activation=LeakyReLU(alpha=0.1)))
+        model.add(Conv2D(256, 1, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(512, 3, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(256, 1, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(512, 3, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(256, 1, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(512, 3, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(256, 1, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(512, 3, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(512, 1, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(1024, 3, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
         model.add(MaxPooling2D(2))
 
-        model.add(Conv2D(512, 1, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(1024, 3, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(512, 1, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(1024, 3, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(1024, 3, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(1024, 3, 2, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(1024, 3, 1, activation=LeakyReLU(alpha=0.1)))
-        model.add(Conv2D(1024, 3, 1, activation=LeakyReLU(alpha=0.1)))
+        model.add(Conv2D(512, 1, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(1024, 3, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(512, 1, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(1024, 3, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(1024, 3, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(1024, 3, 2))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(1024, 3, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Conv2D(1024, 3, 1))
+        model.add(BatchNormalization())
+        model.add(LeakyReLU(alpha=0.1))
 
         model.add(Flatten())
-        model.add(Dense(units=512, activation=LeakyReLU(alpha=0.1)))
-        model.add(Dense(units=4096, activation=LeakyReLU(alpha=0.1)))
+        model.add(Dense(units=512))
+        model.add(LeakyReLU(alpha=0.1))
+        model.add(Dense(units=4096))
+        model.add(LeakyReLU(alpha=0.1))
         #model.add(Dense(units=self.S * self.S * (self.C + 5 * self.B)))
         #model.add(Reshape((self.S * self.S, self.C + 5 * self.B)))
+
         model.add(Dense(units=self.S * self.S * self.B * (self.C + 5)))
         model.add(Reshape((self.S * self.S, self.B, self.C + 5)))
 
-        model.compile(loss=self.yolo_loss,
-                      optimizer='adam',
-                      metrics=['accuracy'])
+        optimizer = Adam(lr=0.5e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+        model.compile(loss=self.yolo_loss, optimizer=optimizer)
         return model
 
     def yolo_loss(self, y_true, y_pred):
         # [[
         #   [C_class acnhor1_has_obj acnhor2_has_obj bbox1... bbox2... ]
         # ]]
+        coord_mask = K.expand_dims(y_true[..., self.C], axis=-1)
         # compute loss bbox
         loss_bbox = K.square(y_true[..., 1:3] - y_pred[..., 1:3]) + K.square(K.sqrt(y_true[..., 3:5]) - K.sqrt(y_pred[..., 3:5]))
+        loss_bbox = loss_bbox * coord_mask
         loss_bbox = K.sum(loss_bbox, axis=2)
         loss_bbox = K.sum(loss_bbox, axis=1) * self.lambda_coord
         # compute loss class
-        loss_class = K.sum(K.square( y_pred[...,:self.C]  - y_true[...,:self.C]), axis=2)
+        loss_class = K.sum(K.square(y_pred[...,:self.C]  - y_true[...,:self.C]) * coord_mask, axis=2)
         loss_class = K.sum(loss_class, axis=1)
         # TODO:
         loss_confidence = K.sum(K.square(y_true[..., 0] - y_pred[..., 0]), axis=2)
@@ -127,24 +146,47 @@ class Yolo(object):
         return K.mean(loss_bbox) + K.mean(loss_confidence) + K.mean(loss_class)
 
     def train(self, train_path, valid_path):
-        train_labels = format_label(os.path.join(train_path, 'label'), 7, 2, 448, (448 / 1242, 448 / 375))
+        early_stop = EarlyStopping(monitor='val_loss',
+                                   min_delta=0.001,
+                                   patience=3,
+                                   mode='min',
+                                   verbose=1)
+
+        checkpoint = ModelCheckpoint('weights_coco.h5',
+                                     monitor='val_loss',
+                                     verbose=1,
+                                     save_best_only=True,
+                                     mode='min',
+                                     period=1)
+        train_labels = format_label(os.path.join(train_path, 'label'), 7, 2, self.target_size[0], (float(self.target_size[0]) / 1242, float(self.target_size[1]) / 375))
         train_generator = DirectoryIteratorWithBoundingBoxes(
-                os.path.join(train_path, 'image'), ImageDataGenerator(), train_labels, target_size=(448, 448),
-                batch_size=16)
+                os.path.join(train_path, 'image'), ImageDataGenerator(), train_labels, target_size=self.target_size,
+                batch_size=batch_size)
         #batch_x, batch_y = train_generator.next()
         #print batch_x.shape, batch_y.shape
-        validation_labels = format_label(os.path.join(valid_path, 'label'), 7, 2, 448, (448 / 1242, 448 / 375))
+        validation_labels = format_label(os.path.join(valid_path, 'label'), 7, 2, self.target_size[0], (float(self.target_size[0]) / 1242, float(self.target_size[1]) / 375))
         validation_generator = DirectoryIteratorWithBoundingBoxes(
-                os.path.join(valid_path, 'image'), ImageDataGenerator(), validation_labels, target_size=(448, 448),
-                batch_size=16)
+                os.path.join(valid_path, 'image'), ImageDataGenerator(), validation_labels, target_size=self.target_size,
+                batch_size=batch_size)
         self.model.fit_generator(
             train_generator,
             # steps_per_epoch=2000,
             epochs=50,
             validation_data=validation_generator,
+            callbacks=[early_stop, checkpoint],
             validation_steps=100)
-        loss_and_metrics = self.model.evaluate(x_test, y_test, batch_size=16)
-        print loss_and_metrics
+        #loss_and_metrics = self.model.evaluate(x_test, y_test, batch_size=16)
+        #print loss_and_metrics
+
+    def load_weights(self, weights_path):
+        self.model.load_weights(weights_path)
+
+    def predict(self, fpath):
+        img = image.load_img(fpath, target_size=self.target_size)
+        x = image.img_to_array(img)
+        #x /= 255
+        x = np.expand_dims(x, axis=0)
+        return self.model.predict(x)
 
 #classes = model.predict(x_test, batch_size=128)
 
