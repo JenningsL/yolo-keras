@@ -14,14 +14,27 @@ scale_x = float(origin_w) / target_size
 scale_y = float(origin_h) / target_size
 CLASSES = ['Car', 'Van', 'Truck', 'Pedestrian', 'Person_sitting', 'Cyclist', 'Tram', 'Misc', 'DontCare']
 
+def _sigmoid(x):
+    return 1. / (1. + np.exp(-x))
+
+
+def _softmax(x, axis=-1, t=-100.):
+    x = x - np.max(x)
+    if np.min(x) < t:
+        x = x/np.min(x)*t
+    e_x = np.exp(x)
+    return e_x / e_x.sum(axis, keepdims=True)
+
+
 def display(img_in, img_out, y_pred):
+    y_pred = _sigmoid(y_pred)
     img = cv2.imread(img_in)
     cell_size = target_size / S
     print np.max(y_pred[..., C])
     for i, cell in enumerate(y_pred):
         # find bbox with object
         try:
-            obj_abox = next(abox for abox in cell if abox[C] > 0.1)
+            obj_abox = next(abox for abox in cell if abox[C] > 0.5)
         except:
             continue
         if obj_abox is None:
@@ -52,7 +65,6 @@ def display(img_in, img_out, y_pred):
         font = cv2.FONT_HERSHEY_SIMPLEX
         # class
         cls = int(np.argmax(obj_abox[:C]))
-        print cls
         cv2.putText(img, CLASSES[cls], (x1, y1), font, 0.5, (0,0,255), 1)
     cv2.imwrite(img_out, img)
 

@@ -121,6 +121,7 @@ class Yolo(object):
         #model.add(Reshape((self.S * self.S, self.C + 5 * self.B)))
 
         model.add(Dense(units=self.S * self.S * self.B * (self.C + 5)))
+        model.add
         model.add(Reshape((self.S * self.S, self.B, self.C + 5)))
 
         optimizer = Adam(lr=0.5e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
@@ -128,6 +129,7 @@ class Yolo(object):
         return model
 
     def yolo_loss(self, y_true, y_pred):
+        y_pred = K.sigmoid(y_pred)
         coord_mask = K.expand_dims(y_true[..., self.C], axis=-1)
         confidence_mask = (K.ones_like(coord_mask) - coord_mask) * self.lambda_noobj + coord_mask
         # compute loss bbox
