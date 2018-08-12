@@ -26,7 +26,8 @@ class Yolo(object):
         self.lambda_noobj = 0.5
         #self.target_size = (448, 448)
         self.target_size = (416, 416)
-        self.model = self._build()
+        # self.model = self._build()
+        self.model = self._build_v2()
 
     def _build(self):
         model = Sequential()
@@ -265,7 +266,7 @@ class Yolo(object):
         # output = Lambda(lambda args: args[0])([output, true_boxes])
 
         # model = Model([input_image, true_boxes], output)
-        self.model = Model(input_image, output)
+        return Model(input_image, output)
 
     def load_pretrained_weights(self, wt_path):
         weight_reader = WeightReader(wt_path)
@@ -405,7 +406,7 @@ def yolo_loss(y_true, y_pred):
 
 if __name__ == '__main__':
     yolo = Yolo()
-    yolo.load_weights('./yolo.weights')
+    yolo.load_pretrained_weights('./yolo.weights')
     yolo.train('../KITTI/training/split_0.1/train', '../KITTI/training/split_0.1/valid')
 
     '''
