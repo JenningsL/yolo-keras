@@ -1,10 +1,14 @@
 from keras.models import Sequential
-from keras.layers import Dense, Conv2D, LeakyReLU,  MaxPooling2D, Flatten, Reshape, BatchNormalization, Input
+from keras.models import Model
+from keras.layers import Dense, Conv2D, LeakyReLU,  MaxPooling2D, Flatten, Reshape, BatchNormalization, Input, Lambda
+from keras.layers.merge import concatenate
 from keras.preprocessing import image
 from keras.preprocessing.image import ImageDataGenerator
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.optimizers import Adam
 import keras.backend as K
+import tensorflow as tf
+
 from data import DirectoryIteratorWithBoundingBoxes
 from format import format_label
 import os
@@ -14,6 +18,24 @@ import numpy as np
 IMAGE_H = 448
 IMAGE_W = 448
 batch_size = 8
+
+def space_to_depth_x2(x):
+    return tf.space_to_depth(x, block_size=2)
+
+
+class WeightReader:
+
+    def __init__(self, weight_file):
+        self.offset = 4
+        self.all_weights = np.fromfile(weight_file, dtype='float32')
+
+    def read_bytes(self, size):
+        self.offset = self.offset + size
+        return self.all_weights[self.offset-size:self.offset]
+
+    def reset(self):
+        self.offset = 4
+
 
 class Yolo(object):
     """docstring for Yolo."""
@@ -129,7 +151,7 @@ class Yolo(object):
         model.compile(loss=self.yolo_loss, optimizer=optimizer)
         return model
 
-    def _build_v2():
+    def _build_v2(self):
         BOX = self.B
         CLASS = self.C
         GRID_H = self.S
@@ -259,14 +281,20 @@ class Yolo(object):
 
         # Layer 23
         x = Conv2D(BOX * (4 + 1 + CLASS), (1,1), strides=(1,1), padding='same', name='conv_23')(x)
-        output = Reshape((GRID_H, GRID_W, BOX, 4 + 1 + CLASS))(x)
+        x = Flatten()(x)
+        x = Dense(units=GRID_H * GRID_W * BOX * (4 + 1 + CLASS))(x)
+        output = Reshape((GRID_H * GRID_W, BOX, 4 + 1 + CLASS))(x)
 
         # small hack to allow true_boxes to be registered when Keras build the model
         # for more information: https://github.com/fchollet/keras/issues/2790
         # output = Lambda(lambda args: args[0])([output, true_boxes])
 
         # model = Model([input_image, true_boxes], output)
-        return Model(input_image, output)
+        model = Model(input_image, output)
+        optimizer = Adam(lr=0.5e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+        model.compile(loss=self.yolo_loss, optimizer=optimizer)
+        print model.summary()
+        return model
 
     def load_pretrained_weights(self, wt_path):
         weight_reader = WeightReader(wt_path)
@@ -300,11 +328,11 @@ class Yolo(object):
                 kernel = kernel.transpose([2,3,1,0])
                 conv_layer.set_weights([kernel])
         # Randomize weights of the last layer
-        layer   = model.layers[-4] # the last convolutional layer
+        layer   = self.model.layers[-4] # the last convolutional layer
         weights = layer.get_weights()
 
-        new_kernel = np.random.normal(size=weights[0].shape)/(GRID_H*GRID_W)
-        new_bias   = np.random.normal(size=weights[1].shape)/(GRID_H*GRID_W)
+        new_kernel = np.random.normal(size=weights[0].shape)/(self.S*self.S)
+        new_bias   = np.random.normal(size=weights[1].shape)/(self.S*self.S)
 
         layer.set_weights([new_kernel, new_bias])
 
