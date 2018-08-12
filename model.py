@@ -267,6 +267,46 @@ class Yolo(object):
         # model = Model([input_image, true_boxes], output)
         self.model = Model(input_image, output)
 
+    def load_pretrained_weights(self, wt_path):
+        weight_reader = WeightReader(wt_path)
+        weight_reader.reset()
+        nb_conv = 23
+
+        for i in range(1, nb_conv+1):
+            conv_layer = self.model.get_layer('conv_' + str(i))
+
+            if i < nb_conv:
+                norm_layer = self.model.get_layer('norm_' + str(i))
+
+                size = np.prod(norm_layer.get_weights()[0].shape)
+
+                beta  = weight_reader.read_bytes(size)
+                gamma = weight_reader.read_bytes(size)
+                mean  = weight_reader.read_bytes(size)
+                var   = weight_reader.read_bytes(size)
+
+                weights = norm_layer.set_weights([gamma, beta, mean, var])
+
+            if len(conv_layer.get_weights()) > 1:
+                bias   = weight_reader.read_bytes(np.prod(conv_layer.get_weights()[1].shape))
+                kernel = weight_reader.read_bytes(np.prod(conv_layer.get_weights()[0].shape))
+                kernel = kernel.reshape(list(reversed(conv_layer.get_weights()[0].shape)))
+                kernel = kernel.transpose([2,3,1,0])
+                conv_layer.set_weights([kernel, bias])
+            else:
+                kernel = weight_reader.read_bytes(np.prod(conv_layer.get_weights()[0].shape))
+                kernel = kernel.reshape(list(reversed(conv_layer.get_weights()[0].shape)))
+                kernel = kernel.transpose([2,3,1,0])
+                conv_layer.set_weights([kernel])
+        # Randomize weights of the last layer
+        layer   = model.layers[-4] # the last convolutional layer
+        weights = layer.get_weights()
+
+        new_kernel = np.random.normal(size=weights[0].shape)/(GRID_H*GRID_W)
+        new_bias   = np.random.normal(size=weights[1].shape)/(GRID_H*GRID_W)
+
+        layer.set_weights([new_kernel, new_bias])
+
     def yolo_loss(self, y_true, y_pred):
         y_pred = K.sigmoid(y_pred)
         coord_mask = K.expand_dims(y_true[..., self.C], axis=-1)
@@ -365,6 +405,7 @@ def yolo_loss(y_true, y_pred):
 
 if __name__ == '__main__':
     yolo = Yolo()
+    yolo.load_weights('./yolo.weights')
     yolo.train('../KITTI/training/split_0.1/train', '../KITTI/training/split_0.1/valid')
 
     '''
