@@ -278,8 +278,8 @@ class Yolo(object):
 
         # Layer 23
         x = Conv2D(BOX * (4 + 1 + CLASS), (1,1), strides=(1,1), padding='same', name='conv_23')(x)
-        x = Flatten()(x)
-        x = Dense(units=GRID_H * GRID_W * BOX * (4 + 1 + CLASS))(x)
+        # x = Flatten()(x)
+        # x = Dense(units=GRID_H * GRID_W * BOX * (4 + 1 + CLASS))(x)
         output = Reshape((GRID_H * GRID_W, BOX, 4 + 1 + CLASS))(x)
 
         # small hack to allow true_boxes to be registered when Keras build the model
