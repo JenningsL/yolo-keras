@@ -1,10 +1,10 @@
 import sys
 import numpy as np
 import os
+from config import C, S, B, batch_size, origin_size, target_size, CLASSES, anchor_boxes
 
-classes = ['Car', 'Van', 'Truck', 'Pedestrian', 'Person_sitting', 'Cyclist', 'Tram', 'Misc', 'DontCare']
-anchor_boxes = [[60, 100], [100, 60]]
-C = len(classes)
+# anchor_boxes = [[60, 100], [100, 60]]
+cell_size = target_size[0] / S
 
 def read_kitti_label(fpath):
     objs = []
@@ -14,7 +14,7 @@ def read_kitti_label(fpath):
             if cols[0] == 'DontCare':
                 continue
             objs.append({
-                'class': classes.index(cols[0]),
+                'class': CLASSES.index(cols[0]),
                 'bbox': [float(cols[4]), float(cols[5]), float(cols[6]), float(cols[7])] # left, top, right, bottom
             })
     return objs
@@ -43,9 +43,21 @@ def cal_IOU(boxA, boxB):
     return iou
 
 
-def format_label(path, S, B, target_size, resize=(1, 1)):
+def find_anchor_box(true_box, col, row):
+    grid_center_x = (col + 0.5) * cell_size
+    grid_center_y = (row + 0.5) * cell_size
+    IOUs = []
+    for abox in anchor_boxes:
+        box_w = cell_size * abox[0]
+        box_h = cell_size * abox[1]
+        anchor_box = [grid_center_x - box_w / 2, grid_center_y - box_h / 2, grid_center_x + box_w / 2, grid_center_y + box_h / 2]
+        iou = cal_IOU(true_box, anchor_box)
+        IOUs.append(iou)
+    return np.argmax(IOUs)
+
+def format_label(path):
+    resize = (float(target_size[0]) / origin_size[0], float(target_size[1]) / origin_size[1])
     label_dict = {}
-    unit_size = target_size / S
     for fname in os.listdir(path):
         key = fname.split('.')[0]
         fpath = os.path.join(path, fname)
@@ -61,30 +73,23 @@ def format_label(path, S, B, target_size, resize=(1, 1)):
             y = (bottom + top) / 2
             w = right - left
             h = bottom - top
-            row = int(y // unit_size)
-            col = int(x // unit_size)
+            row = int(y // cell_size)
+            col = int(x // cell_size)
             cls = obj['class']
             # TODO: determined bbox based on IOU
-            x_unit = (col + 0.5) * unit_size
-            y_unit = (row + 0.5) * unit_size
-            IOU1 = cal_IOU([x, y, w, h], [x_unit - anchor_boxes[0][0] / 2, y_unit - anchor_boxes[0][1] / 2, x_unit + anchor_boxes[0][0] / 2, y_unit + anchor_boxes[0][1] / 2])
-            IOU2 = cal_IOU([x, y, w, h], [x_unit - anchor_boxes[1][0] / 2, y_unit - anchor_boxes[1][1] / 2, x_unit + anchor_boxes[1][0] / 2, y_unit + anchor_boxes[1][1] / 2])
-            # [C_class acnhor1_has_obj acnhor2_has_obj bbox1... bbox2... ]
-            anc_box = 0
-            if IOU2 > IOU1:
-                anc_box = 1
+            anc_box = find_anchor_box([left, top, right, bottom], col, row)
             label[row * S + col][anc_box][cls] = 1
             label[row * S + col][anc_box][C] = 1
-            label[row * S + col][anc_box][C + 1] = (x - col * unit_size) / unit_size
-            label[row * S + col][anc_box][C + 2] = (y - row * unit_size) / unit_size
-            label[row * S + col][anc_box][C + 3] = w / target_size
-            label[row * S + col][anc_box][C + 4] = h / target_size
+            label[row * S + col][anc_box][C + 1] = (x - col * cell_size) / cell_size
+            label[row * S + col][anc_box][C + 2] = (y - row * cell_size) / cell_size
+            label[row * S + col][anc_box][C + 3] = w / target_size[0]
+            label[row * S + col][anc_box][C + 4] = h / target_size[0]
             if fname == '002242.txt':
                 print 'left: {0} top: {1}  right:{2} bottom: {3}'.format(left, top, right, bottom)
                 print 'format row: {0} col: {1}'.format(row, col)
                 print label[row * S + col][anc_box]
-                #print label[row * S + col][anc_box][C + 1] * unit_size + col * unit_size - w / 2
-                print label[row * S + col][anc_box][C + 1] * unit_size + col * unit_size
+                #print label[row * S + col][anc_box][C + 1] * cell_size + col * cell_size - w / 2
+                print label[row * S + col][anc_box][C + 1] * cell_size + col * cell_size
             #print label[row * S + col]
         # label = label.flatten()
 
@@ -93,7 +98,7 @@ def format_label(path, S, B, target_size, resize=(1, 1)):
 
 if __name__ == '__main__':
     # original size of KITTI is 1242 x 375
-    labels = format_label(sys.argv[1], 7, 2, 448, (float(448) / 1242, float(448) / 375))
+    labels = format_label(sys.argv[1])
     import pickle
     with open(sys.argv[2], 'wb') as fout:
         pickle.dump(labels, fout)

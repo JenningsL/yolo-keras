@@ -14,10 +14,7 @@ from format import format_label
 import os
 import math
 import numpy as np
-
-IMAGE_H = 448
-IMAGE_W = 448
-batch_size = 8
+from config import C, S, B, batch_size, origin_size, target_size
 
 def space_to_depth_x2(x):
     return tf.space_to_depth(x, block_size=2)
@@ -41,13 +38,13 @@ class Yolo(object):
     """docstring for Yolo."""
     def __init__(self):
         super(Yolo, self).__init__()
-        self.S = 7 # grid cell num in each axis
-        self.B = 2 #
-        self.C = 9 # number of classes
+        self.S = S # grid cell num in each axis
+        self.B = B #
+        self.C = C # number of classes
         self.lambda_coord = 5
         self.lambda_noobj = 0.5
         #self.target_size = (448, 448)
-        self.target_size = (416, 416)
+        self.target_size = target_size
         # self.model = self._build()
         self.model = self._build_v2()
 
@@ -372,13 +369,13 @@ class Yolo(object):
                                      save_best_only=True,
                                      mode='min',
                                      period=1)
-        train_labels = format_label(os.path.join(train_path, 'label'), 7, 2, self.target_size[0], (float(self.target_size[0]) / 1242, float(self.target_size[1]) / 375))
+        train_labels = format_label(os.path.join(train_path, 'label'))
         train_generator = DirectoryIteratorWithBoundingBoxes(
                 os.path.join(train_path, 'image'), ImageDataGenerator(), train_labels, target_size=self.target_size,
                 batch_size=batch_size)
         #batch_x, batch_y = train_generator.next()
         #print batch_x.shape, batch_y.shape
-        validation_labels = format_label(os.path.join(valid_path, 'label'), 7, 2, self.target_size[0], (float(self.target_size[0]) / 1242, float(self.target_size[1]) / 375))
+        validation_labels = format_label(os.path.join(valid_path, 'label'))
         validation_generator = DirectoryIteratorWithBoundingBoxes(
                 os.path.join(valid_path, 'image'), ImageDataGenerator(), validation_labels, target_size=self.target_size,
                 batch_size=batch_size)

@@ -3,16 +3,17 @@ from format import format_label
 import sys
 import numpy as np
 from model import Yolo
+from config import *
 
-C = 9
-S = 7
-B = 2
-target_size = 448
-origin_w = 1242
-origin_h = 375
-scale_x = float(origin_w) / target_size
-scale_y = float(origin_h) / target_size
-CLASSES = ['Car', 'Van', 'Truck', 'Pedestrian', 'Person_sitting', 'Cyclist', 'Tram', 'Misc', 'DontCare']
+# C = 9
+# S = 7
+# B = 2
+# target_size = 448
+# origin_w = 1242
+# origin_h = 375
+scale_x = float(origin_size[0]) / target_size[0]
+scale_y = float(origin_size[1]) / target_size[1]
+# CLASSES = ['Car', 'Van', 'Truck', 'Pedestrian', 'Person_sitting', 'Cyclist', 'Tram', 'Misc', 'DontCare']
 
 def _sigmoid(x):
     return 1. / (1. + np.exp(-x))
@@ -29,7 +30,7 @@ def _softmax(x, axis=-1, t=-100.):
 def display(img_in, img_out, y_pred):
     y_pred = _sigmoid(y_pred)
     img = cv2.imread(img_in)
-    cell_size = target_size / S
+    cell_size = target_size[0] / S
     print np.max(y_pred[..., C])
     for i, cell in enumerate(y_pred):
         # find bbox with object
@@ -44,8 +45,8 @@ def display(img_in, img_out, y_pred):
         #print obj_abox
         x = (col + obj_abox[C + 1]) * cell_size
         y = (row + obj_abox[C + 2]) * cell_size
-        w = obj_abox[C + 3] * target_size
-        h = obj_abox[C + 4] * target_size
+        w = obj_abox[C + 3] * target_size[0]
+        h = obj_abox[C + 4] * target_size[0]
         #print 'x: {0} y: {1} w: {2} h: {3} row: {4} col: {5}'.format(x, y, w, h, row, col)
         x1 = x - w / 2
         y1 = y - h / 2
@@ -70,7 +71,7 @@ def display(img_in, img_out, y_pred):
 
 if __name__ == '__main__':
     '''
-    labels = format_label('../KITTI/training/split_0.1/train/label', 7, 2, 448, (float(448) / 1242, float(448) / 375))
+    labels = format_label('../KITTI/training/split_0.1/train/label')
     key = sys.argv[1]
     img_path_in = '../KITTI/training/split_0.1/train/image/0/%s.png' % key
     img_path_out = './%s.png' % key
