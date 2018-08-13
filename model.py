@@ -325,7 +325,7 @@ class Yolo(object):
                 kernel = kernel.transpose([2,3,1,0])
                 conv_layer.set_weights([kernel])
         # Randomize weights of the last layer
-        layer   = self.model.layers[-4] # the last convolutional layer
+        layer   = self.model.layers[-2] # the last convolutional layer
         weights = layer.get_weights()
 
         new_kernel = np.random.normal(size=weights[0].shape)/(self.S*self.S)
