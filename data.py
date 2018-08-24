@@ -43,6 +43,7 @@ class DirectoryIteratorWithBoundingBoxes(DirectoryIterator):
                                  grayscale=grayscale,
                                  target_size=self.target_size)
             x = image.img_to_array(img, data_format=self.data_format)
+            x /= 255
             #x = self.image_data_generator.random_transform(x)
             #x = self.image_data_generator.standardize(x)
             batch_x[i] = x

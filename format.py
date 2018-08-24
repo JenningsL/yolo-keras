@@ -63,7 +63,7 @@ def format_label(path):
         fpath = os.path.join(path, fname)
         objs = read_kitti_label(fpath)
         #label = np.zeros((S * S, 5 * B + C))
-        label = np.zeros((S * S, B, 5 + C))
+        label = np.zeros((S, S, B, 5 + C))
         for obj in objs:
             left = obj['bbox'][0] * resize[0]
             top = obj['bbox'][1] * resize[1]
@@ -78,18 +78,12 @@ def format_label(path):
             cls = obj['class']
             # TODO: determined bbox based on IOU
             anc_box = find_anchor_box([left, top, right, bottom], col, row)
-            label[row * S + col][anc_box][cls] = 1
-            label[row * S + col][anc_box][C] = 1
-            label[row * S + col][anc_box][C + 1] = (x - col * cell_size) / cell_size
-            label[row * S + col][anc_box][C + 2] = (y - row * cell_size) / cell_size
-            label[row * S + col][anc_box][C + 3] = w / target_size[0]
-            label[row * S + col][anc_box][C + 4] = h / target_size[0]
-            if fname == '002242.txt':
-                print 'left: {0} top: {1}  right:{2} bottom: {3}'.format(left, top, right, bottom)
-                print 'format row: {0} col: {1}'.format(row, col)
-                print label[row * S + col][anc_box]
-                #print label[row * S + col][anc_box][C + 1] * cell_size + col * cell_size - w / 2
-                print label[row * S + col][anc_box][C + 1] * cell_size + col * cell_size
+            label[row][col][anc_box][cls] = 1
+            label[row][col][anc_box][C] = 1
+            label[row][col][anc_box][C + 1] = (x - col * cell_size) / cell_size
+            label[row][col][anc_box][C + 2] = (y - row * cell_size) / cell_size
+            label[row][col][anc_box][C + 3] = w / target_size[0]
+            label[row][col][anc_box][C + 4] = h / target_size[0]
             #print label[row * S + col]
         # label = label.flatten()
 
